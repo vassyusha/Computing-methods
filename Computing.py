@@ -23,7 +23,7 @@ class Computing:
         min_filt_id = np.argmin(filtered_columns)
         mat_min_id = avel_min[min_filt_id]
 
-        return {min_val, mat_min_id}
+        return min_val, mat_min_id
 
     def HungarianMinimum(self):
         row_ind, col_ind = scipy.optimize.linear_sum_assignment(self.__params)
@@ -46,8 +46,7 @@ class Computing:
             min_val, row = self.FindMinInColumnWhithExclitedRows(i, assigned_rows)
             cost += min_val
             assigned_rows.add(row)
-            
-
+        
         return cost
     
     # ...
