@@ -79,8 +79,44 @@ class Computing:
                 assigned_rows.add(row)
 
         return cost
-    # ...
     
-    def Method_N(self):
-        return 0
+
+    def Greedy_ThreftyMetodX(self, x):
+        cost = 0
+        shapes = self.__params.shape
+        assigned_rows = set()
+
+        for i in range(shapes[1]):
+            if i < x:
+                val, row = self.FindMaxInColumnWhithExclitedRows(i, assigned_rows)
+                if row != -1:
+                    cost += val
+                    assigned_rows.add(row)
+                    
+            else:
+                val, row = self.FindMinInColumnWhithExclitedRows(i, assigned_rows)
+                if row != -1:
+                    cost += val
+                    assigned_rows.add(row)
+
+        return cost
     
+    def Threfty_GreedMetodX(self, x):
+        cost = 0
+        shapes = self.__params.shape
+        assigned_rows = set()
+
+        for i in range(shapes[1]):
+            if i < x:
+                val, row = self.FindMinInColumnWhithExclitedRows(i, assigned_rows)
+                if row != -1:
+                    cost += val
+                    assigned_rows.add(row)
+
+            else:
+                val, row = self.FindMaxInColumnWhithExclitedRows(i, assigned_rows)
+                if row != -1:
+                    cost += val
+                    assigned_rows.add(row)
+
+        return cost
