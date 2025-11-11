@@ -6,12 +6,14 @@ class Computing:
     def __init__(self, matirx):
         self.__params = matirx
     
-    def findMaxInColumnWhithExclitedRows(self, column_id, excluded_rows):
+    @accessify.private
+    def FindMaxInColumnWhithExclitedRows(self, column_id, excluded_rows):
         matrix = np.copy(self.__params)
         col = matrix[:, column_id]
 
         mask = np.ones(len(col), bool)
-        mask[excluded_rows] = False
+        excluded_idx = [int(idx) for idx in excluded_rows]
+        mask[excluded_idx] = False
 
         filtered_columns = col[mask]
 
@@ -21,8 +23,7 @@ class Computing:
         max_filt_id = np.argmax(filtered_columns)
         mat_max_id = avel_max[max_filt_id]
 
-        return {max_val, mat_max_id}
-
+        return max_val, mat_max_id
 
     def HungarianMinimum(self):
         row_ind, col_ind = scipy.optimize.linear_sum_assignment(self.__params)
@@ -41,9 +42,10 @@ class Computing:
         assigned_rows = set()
 
         for i in range(shapes[1]):
-            max_val, row = findMaxInColumnWhithExclitedRows(i, assigned_rows)
+            max_val, row = self.FindMaxInColumnWhithExclitedRows(i, assigned_rows)
             if row != -1:
-                cost += 1
+                cost += max_val
+                assigned_rows.add(row)
 
         return cost
     
