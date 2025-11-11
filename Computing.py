@@ -7,6 +7,25 @@ class Computing:
         self.__params = matirx
     
     @accessify.private
+    def FindMaxInColumnWhithExclitedRows(self, column_id, excluded_rows):
+        matrix = np.copy(self.__params)
+        col = matrix[:, column_id]
+
+        mask = np.ones(len(col), bool)
+        excluded_idx = [int(idx) for idx in excluded_rows]
+        mask[excluded_idx] = False
+
+        filtered_columns = col[mask]
+
+        max_val = np.max(filtered_columns)
+
+        avel_max = np.where(mask)[0]
+        max_filt_id = np.argmax(filtered_columns)
+        mat_max_id = avel_max[max_filt_id]
+
+        return max_val, mat_max_id
+
+    @accessify.private
     def FindMinInColumnWhithExclitedRows(self, column_id, excluded_rows):
         matrix = np.copy(self.__params)
         col = matrix[:, column_id]
@@ -24,7 +43,7 @@ class Computing:
         mat_min_id = avel_min[min_filt_id]
 
         return min_val, mat_min_id
-
+    
     def HungarianMinimum(self):
         row_ind, col_ind = scipy.optimize.linear_sum_assignment(self.__params)
         cost = self.__params[row_ind, col_ind].sum()
@@ -36,7 +55,6 @@ class Computing:
             cost = self.__params[row_ind, col_ind].sum()
             return cost
 
-    
     def ThriftyMethod(self):
         cost = 0
         shapes = self.__params.shape
@@ -49,6 +67,18 @@ class Computing:
         
         return cost
     
+    def GreedyMethod(self):
+        cost = 0
+        shapes = self.__params.shape
+        assigned_rows = set()
+
+        for i in range(shapes[1]):
+            max_val, row = self.FindMaxInColumnWhithExclitedRows(i, assigned_rows)
+            if row != -1:
+                cost += max_val
+                assigned_rows.add(row)
+
+        return cost
     # ...
     
     def Method_N(self):
