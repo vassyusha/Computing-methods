@@ -46,45 +46,62 @@ class Computing:
     
     def HungarianMinimum(self):
         row_ind, col_ind = scipy.optimize.linear_sum_assignment(self.__params)
-        cost = self.__params[row_ind, col_ind].sum()
-        return cost
+        # Sort by column index to simulate "stages"
+        sorted_indices = np.argsort(col_ind)
+        row_ind = row_ind[sorted_indices]
+        col_ind = col_ind[sorted_indices]
+        
+        values = self.__params[row_ind, col_ind]
+        cost = values.sum()
+        return cost, values
     
     def HungarianMaximum(self):
-            matrix = -self.__params.copy()
-            row_ind, col_ind = scipy.optimize.linear_sum_assignment(matrix)
-            cost = self.__params[row_ind, col_ind].sum()
-            return cost
+        matrix = -self.__params.copy()
+        row_ind, col_ind = scipy.optimize.linear_sum_assignment(matrix)
+        # Sort by column index
+        sorted_indices = np.argsort(col_ind)
+        row_ind = row_ind[sorted_indices]
+        col_ind = col_ind[sorted_indices]
+        
+        values = self.__params[row_ind, col_ind]
+        cost = values.sum()
+        return cost, values
 
     def ThriftyMethod(self):
         cost = 0
         shapes = self.__params.shape
         assigned_rows = set()
+        values = []
 
         for i in range(shapes[0]):
             min_val, row = self.FindMinInColumnWithExclitedRows(i, assigned_rows)
             cost += min_val
             assigned_rows.add(row)
+            values.append(min_val)
         
-        return cost
+        return cost, np.array(values)
     
     def GreedyMethod(self):
         cost = 0
         shapes = self.__params.shape
         assigned_rows = set()
+        values = []
 
         for i in range(shapes[1]):
             max_val, row = self.FindMaxInColumnWithExclitedRows(i, assigned_rows)
             if row != -1:
                 cost += max_val
                 assigned_rows.add(row)
+                values.append(max_val)
 
-        return cost
+        return cost, np.array(values)
     
 
     def Greedy_ThreftyMetodX(self, x):
         cost = 0
         shapes = self.__params.shape
         assigned_rows = set()
+        values = []
 
         for i in range(shapes[1]):
             if i < x:
@@ -92,19 +109,22 @@ class Computing:
                 if row != -1:
                     cost += val
                     assigned_rows.add(row)
+                    values.append(val)
 
             else:
                 val, row = self.FindMinInColumnWithExclitedRows(i, assigned_rows)
                 if row != -1:
                     cost += val
                     assigned_rows.add(row)
+                    values.append(val)
 
-        return cost
+        return cost, np.array(values)
     
     def Threfty_GreedyMetodX(self, x):
         cost = 0
         shapes = self.__params.shape
         assigned_rows = set()
+        values = []
 
         for i in range(shapes[1]):
             if i < x:
@@ -112,11 +132,13 @@ class Computing:
                 if row != -1:
                     cost += val
                     assigned_rows.add(row)
+                    values.append(val)
 
             else:
                 val, row = self.FindMaxInColumnWithExclitedRows(i, assigned_rows)
                 if row != -1:
                     cost += val
                     assigned_rows.add(row)
+                    values.append(val)
 
-        return cost
+        return cost, np.array(values)

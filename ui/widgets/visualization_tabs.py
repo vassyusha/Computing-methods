@@ -25,21 +25,21 @@ class VisualizationTabs(QWidget):
         self.tab_matrix_layout.addWidget(self.vis_matrix_table)
         self.tabs.addTab(self.tab_matrix, "Матрица (визуализация)")
         
-        # --- Вкладка 2: Гистограмма ---
+        # --- Вкладка 2: График ---
         self.tab_graph = QWidget()
         self.tab_graph_layout = QVBoxLayout(self.tab_graph)
         self.graph_view = QGraphicsView()
         self.graph_scene = QGraphicsScene()
         self.graph_view.setScene(self.graph_scene)
         self.tab_graph_layout.addWidget(self.graph_view)
-        self.tabs.addTab(self.tab_graph, "Гистограмма")
+        self.tabs.addTab(self.tab_graph, "График")
         
-        # --- Вкладка 3: Анимация ---
-        self.tab_anim = QWidget()
-        self.tab_anim_layout = QVBoxLayout(self.tab_anim)
-        self.anim_view = QGraphicsView()
-        self.tab_anim_layout.addWidget(self.anim_view)
-        self.tabs.addTab(self.tab_anim, "Анимация")
+        # --- Вкладка 3: Гистограмма ---
+        self.tab_gisto = QWidget()
+        self.tab_gisto_layout = QVBoxLayout(self.tab_gisto)
+        self.gisto_view = QGraphicsView()
+        self.tab_gisto_layout.addWidget(self.gisto_view)
+        self.tabs.addTab(self.tab_gisto, "Гистограмма")
         
         self.layout.addWidget(self.tabs)
 

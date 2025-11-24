@@ -293,3 +293,79 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 QSplitter::handle {
     background-color: #1E1E2E;
 }
+
+/* Comparison Panel Specifics - Larger Elements */
+#comparisonSettingsPanel QLabel {
+    font-size: 12pt;
+    padding: 4px 0;
+}
+
+#comparisonSettingsPanel QSpinBox, 
+#comparisonSettingsPanel QDoubleSpinBox {
+    font-size: 12pt;
+    padding: 8px 10px;
+    min-height: 32px;
+    border-radius: 6px;
+}
+
+/* Make min/max fields wider */
+#comparisonSettingsPanel QDoubleSpinBox {
+    min-width: 90px; 
+}
+
+#comparisonSettingsPanel QCheckBox {
+    font-size: 12pt;
+    spacing: 10px;
+    padding: 4px;
+}
+
+/* Custom Beautiful Checkbox for Condition */
+QCheckBox#chk_condition {
+    spacing: 12px;
+    font-size: 13pt;
+    font-weight: 600;
+    color: #CDD6F4;
+    padding: 8px 4px;
+}
+
+QCheckBox#chk_condition::indicator {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    border: 2px solid #585B70;
+    background-color: #181825;
+}
+
+QCheckBox#chk_condition::indicator:hover {
+    border-color: #89B4FA;
+    background-color: #313244;
+}
+
+QCheckBox#chk_condition::indicator:checked {
+    background-color: #89B4FA;
+    border-color: #89B4FA;
+    image: url(ui/resources/check.svg);
+}
+
+QCheckBox#chk_condition::indicator:checked:hover {
+    background-color: #B4BEFE;
+    border-color: #B4BEFE;
+}
+
+#comparisonSettingsPanel QPushButton {
+    font-size: 13pt;
+    padding: 12px 24px;
+    min-height: 45px;
+    border-radius: 8px;
+}
+
+#comparisonSettingsPanel QGroupBox {
+    font-size: 13pt;
+    margin-top: 35px;
+    padding-top: 30px;
+}
+
+#comparisonSettingsPanel QGroupBox::title {
+    font-size: 13pt;
+    padding: 0px 8px;
+}

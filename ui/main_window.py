@@ -1,9 +1,10 @@
 
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter
+from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget
 from PyQt5.QtCore import Qt, QTimer
 from ui.widgets.matrix_editor import MatrixEditorPanel
 from ui.widgets.control_panel import ControlPanel
 from ui.widgets.visualization_tabs import VisualizationTabs
+from ui.widgets.comparison_panel import ComparisonPanel
 import Computing
 from HungarianAlgorithm import HungarianAlgorithm
 
@@ -17,22 +18,30 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Главный макет
-        main_layout = QHBoxLayout(central_widget)
-        main_layout.setContentsMargins(24, 24, 24, 24) # Большие отступы от краев окна
-        main_layout.setSpacing(24) # Большой отступ между панелями
+        # Главный макет (теперь с вкладками)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+        
+        # --- Вкладка 1: Визуализация (Старый интерфейс) ---
+        self.tab_visualization = QWidget()
+        vis_layout = QHBoxLayout(self.tab_visualization)
+        vis_layout.setContentsMargins(24, 24, 24, 24)
+        vis_layout.setSpacing(24)
         
         # Левая панель (Ввод + Управление)
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(6) # Уменьшенный отступ между карточками
+        left_layout.setSpacing(6) 
         
         self.matrix_editor = MatrixEditorPanel()
         self.control_panel = ControlPanel()
         
-        left_layout.addWidget(self.matrix_editor, stretch=2) # Матрица
-        left_layout.addWidget(self.control_panel, stretch=3) # Увеличенное место для панели управления (и лога)
+        left_layout.addWidget(self.matrix_editor, stretch=2)
+        left_layout.addWidget(self.control_panel, stretch=3)
         
         # Правая панель (Визуализация)
         self.visualization_tabs = VisualizationTabs()
@@ -41,11 +50,17 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_panel)
         splitter.addWidget(self.visualization_tabs)
-        splitter.setStretchFactor(0, 4) # Левая часть 40%
-        splitter.setStretchFactor(1, 6) # Правая часть 60%
-        splitter.setHandleWidth(0) # Скрываем ручку разделителя визуально (или делаем тонкой)
+        splitter.setStretchFactor(0, 4)
+        splitter.setStretchFactor(1, 6)
+        splitter.setHandleWidth(0)
         
-        main_layout.addWidget(splitter)
+        vis_layout.addWidget(splitter)
+        
+        self.tabs.addTab(self.tab_visualization, "Визуализация")
+        
+        # --- Вкладка 2: Сравнение алгоритмов ---
+        self.comparison_panel = ComparisonPanel()
+        self.tabs.addTab(self.comparison_panel, "Сравнение алгоритмов")
 
         # Подключение сигналов
         self.control_panel.btn_solution.clicked.connect(self.show_solution)
@@ -114,10 +129,10 @@ class MainWindow(QMainWindow):
             comp = Computing.Computing(matrix)
             
             if self.matrix_editor.radio_min.isChecked():
-                cost = comp.HungarianMinimum()
+                cost, _ = comp.HungarianMinimum()
                 mode = "Минимизация"
             else:
-                cost = comp.HungarianMaximum()
+                cost, _ = comp.HungarianMaximum()
                 mode = "Максимизация"
                 
             self.control_panel.log(f"Режим: {mode}")
