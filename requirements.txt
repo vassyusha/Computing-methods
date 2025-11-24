@@ -1,0 +1,7 @@
+PyQt5
+qtawesome
+qdarkstyle
+numpy
+scipy
+accessify
+matplotlib
