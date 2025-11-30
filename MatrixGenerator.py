@@ -1,7 +1,6 @@
 import numpy as np
 from typing import Tuple, Dict
 from accessify import private
-
 class MatrixGenerator:
     def __init__(self, n: int = 10, v: int = 7, a_min: float = 0.12, a_max: float = 0.22, beta1: float = 0.85, beta2: float = 1.0):
         self._validate_parameters(n, v, a_min, a_max, beta1, beta2)
@@ -39,6 +38,7 @@ class MatrixGenerator:
     def _init_small_experiment(self, distribution_type: str) -> Tuple[np.array, np.array]:
         a_vector = np.array([np.random.uniform(self.a_min, self.a_max) for _ in range(self.n)])  # вектор начальной сахаристости
 
+<<<<<<< HEAD
         if distribution_type == "uniform":
             b_matrix = np.array([[np.random.uniform(self.beta1, self.beta2) for _ in range(self.v)] for _ in range(self.n) ]) # матрица коэффициентов деградации
         elif distribution_type == "concentrated":
@@ -57,3 +57,15 @@ class MatrixGenerator:
             raise ValueError("distribution_type must be 'uniform' or 'concentrated'")
         
         return a_vector, b_matrix
+=======
+    def GenerateMatrix(self, size, mass, sugar_min, sugar_max, deg_min, deg_max):
+        # Basic implementation to prevent crash
+        return np.random.uniform(sugar_min, sugar_max, (size, size))
+
+    def GenerateUniformMatrix(self, size, min_val=1, max_val=100):
+        return np.random.uniform(min_val, max_val, (size, size))
+
+    def GenerateScenarioMatrix(self, size, mass, sugar_min, sugar_max, deg_min, deg_max):
+        return np.random.uniform(sugar_min, sugar_max, (size, size))
+
+>>>>>>> upstream/master

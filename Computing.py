@@ -1,122 +1,153 @@
 import numpy as np
-import scipy
+import scipy.optimize
 import accessify
 
 class Computing:
-    def __init__(self, matirx):
-        self.__params = matirx
+    def __init__(self, matrix):
+        self.__params = np.array(matrix)
     
     @accessify.private
-    def FindMaxInColumnWhithExclitedRows(self, column_id, excluded_rows):
-        matrix = np.copy(self.__params)
-        col = matrix[:, column_id]
+    def FindMaxInColumnWithExcludedRows(self, column_id, excluded_rows):
+        col = self.__params[:, column_id]
+        n_rows = col.shape[0]
+        
+        mask = np.ones(n_rows, dtype=bool)
+        if excluded_rows:
+            mask[list(excluded_rows)] = False
+            
+        if not np.any(mask):
+            return -1, -1
 
-        mask = np.ones(len(col), bool)
-        excluded_idx = [int(idx) for idx in excluded_rows]
-        mask[excluded_idx] = False
+        filtered_col = col[mask]
+        original_indices = np.where(mask)[0]
+        
+        max_idx_local = np.argmax(filtered_col)
+        max_val = filtered_col[max_idx_local]
+        row_idx = original_indices[max_idx_local]
 
-        filtered_columns = col[mask]
-
-        max_val = np.max(filtered_columns)
-
-        avel_max = np.where(mask)[0]
-        max_filt_id = np.argmax(filtered_columns)
-        mat_max_id = avel_max[max_filt_id]
-
-        return max_val, mat_max_id
+        return max_val, row_idx
 
     @accessify.private
-    def FindMinInColumnWhithExclitedRows(self, column_id, excluded_rows):
-        matrix = np.copy(self.__params)
-        col = matrix[:, column_id]
+    def FindKMinInColumnWithExcludedRows(self, column_id, excluded_rows, k=1):
+        col = self.__params[:, column_id]
+        n_rows = col.shape[0]
 
-        mask = np.ones(len(col), bool)
-        excluded_indices = [int(idx) for idx in excluded_rows]
-        mask[excluded_indices] = False
+        mask = np.ones(n_rows, dtype=bool)
+        if excluded_rows:
+            mask[list(excluded_rows)] = False
+            
+        if not np.any(mask):
+            return -1, -1
 
-        filtered_columns = col[mask]
+        filtered_col = col[mask]
+        original_indices = np.where(mask)[0]
+        
+        if k == 1:
+            min_idx_local = np.argmin(filtered_col)
+            return filtered_col[min_idx_local], original_indices[min_idx_local]
 
-        min_val = np.min(filtered_columns)
+        k = min(k, len(filtered_col))
+        
+        partitioned_indices = np.argpartition(filtered_col, k - 1)
+        kth_smallest_idx_local = partitioned_indices[k - 1]
+        kth_val = filtered_col[kth_smallest_idx_local]
+        
+        return kth_val, original_indices[kth_smallest_idx_local]
 
-        avel_min = np.where(mask)[0]
-        min_filt_id = np.argmin(filtered_columns)
-        mat_min_id = avel_min[min_filt_id]
-
-        return min_val, mat_min_id
-    
     def HungarianMinimum(self):
         row_ind, col_ind = scipy.optimize.linear_sum_assignment(self.__params)
-        cost = self.__params[row_ind, col_ind].sum()
-        return cost
+        values = self.__params[row_ind, col_ind]
+        cost = values.sum()
+        return cost, values
     
     def HungarianMaximum(self):
-            matrix = -self.__params.copy()
-            row_ind, col_ind = scipy.optimize.linear_sum_assignment(matrix)
-            cost = self.__params[row_ind, col_ind].sum()
-            return cost
+        row_ind, col_ind = scipy.optimize.linear_sum_assignment(-self.__params)
+        values = self.__params[row_ind, col_ind]
+        cost = values.sum()
+        return cost, values
 
     def ThriftyMethod(self):
         cost = 0
-        shapes = self.__params.shape
+        _, cols = self.__params.shape
         assigned_rows = set()
+        values = []
 
-        for i in range(shapes[0]):
-            min_val, row = self.FindMinInColumnWhithExclitedRows(i, assigned_rows)
-            cost += min_val
-            assigned_rows.add(row)
+        for i in range(cols):
+            min_val, row = self.FindKMinInColumnWithExcludedRows(i, assigned_rows)
+            if row != -1:
+                cost += min_val
+                assigned_rows.add(row)
+                values.append(min_val)
         
-        return cost
+        return cost, np.array(values)
     
     def GreedyMethod(self):
         cost = 0
-        shapes = self.__params.shape
+        _, cols = self.__params.shape
         assigned_rows = set()
+        values = []
 
-        for i in range(shapes[1]):
-            max_val, row = self.FindMaxInColumnWhithExclitedRows(i, assigned_rows)
+        for i in range(cols):
+            max_val, row = self.FindMaxInColumnWithExcludedRows(i, assigned_rows)
             if row != -1:
                 cost += max_val
                 assigned_rows.add(row)
+                values.append(max_val)
+        return cost, np.array(values)
 
-        return cost
-    
-
-    def Greedy_ThreftyMetodX(self, x):
+    def Greedy_ThriftyMethodX(self, x):
         cost = 0
-        shapes = self.__params.shape
+        _, cols = self.__params.shape
         assigned_rows = set()
+        values = []
 
-        for i in range(shapes[1]):
+        for i in range(cols):
             if i < x:
-                val, row = self.FindMaxInColumnWhithExclitedRows(i, assigned_rows)
-                if row != -1:
-                    cost += val
-                    assigned_rows.add(row)
-
+                val, row = self.FindMaxInColumnWithExcludedRows(i, assigned_rows)
             else:
-                val, row = self.FindMinInColumnWhithExclitedRows(i, assigned_rows)
-                if row != -1:
-                    cost += val
-                    assigned_rows.add(row)
+                val, row = self.FindKMinInColumnWithExcludedRows(i, assigned_rows)
+            
+            if row != -1:
+                cost += val
+                assigned_rows.add(row)
+                values.append(val)
 
-        return cost
+        return cost, np.array(values)
     
-    def Threfty_GreedyMetodX(self, x):
+    def Thrifty_GreedyMethodX(self, x):
         cost = 0
-        shapes = self.__params.shape
+        _, cols = self.__params.shape
         assigned_rows = set()
+        values = []
 
-        for i in range(shapes[1]):
+        for i in range(cols):
             if i < x:
-                val, row = self.FindMinInColumnWhithExclitedRows(i, assigned_rows)
-                if row != -1:
-                    cost += val
-                    assigned_rows.add(row)
-
+                val, row = self.FindKMinInColumnWithExcludedRows(i, assigned_rows)
             else:
-                val, row = self.FindMaxInColumnWhithExclitedRows(i, assigned_rows)
-                if row != -1:
-                    cost += val
-                    assigned_rows.add(row)
+                val, row = self.FindMaxInColumnWithExcludedRows(i, assigned_rows)
+            
+            if row != -1:
+                cost += val
+                assigned_rows.add(row)
+                values.append(val)
 
-        return cost
+        return cost, np.array(values)
+
+    def TkG_MethodX(self, k, x):
+        cost = 0
+        _, cols = self.__params.shape
+        assigned_rows = set()
+        values = []
+
+        for i in range(cols):
+            if (i < x) and (i + k < cols):
+                val, row = self.FindKMinInColumnWithExcludedRows(i, assigned_rows, k)
+            else:
+                val, row = self.FindMaxInColumnWithExcludedRows(i, assigned_rows)
+                
+            if row != -1:
+                cost += val
+                assigned_rows.add(row)
+                values.append(val)
+        
+        return cost, np.array(values)
