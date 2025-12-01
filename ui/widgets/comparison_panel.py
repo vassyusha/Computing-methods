@@ -24,6 +24,7 @@ class Worker(QThread):
         size = self.params['size']
         experiments = self.params['experiments']
         transition = self.params['transition']
+        k = self.params['k']
         
         # New parameters
         mass = self.params['mass']
@@ -39,7 +40,8 @@ class Worker(QThread):
             'Thrifty': np.zeros(size),
             'Greedy': np.zeros(size),
             'GreedyThrifty': np.zeros(size),
-            'ThriftyGreedy': np.zeros(size)
+            'ThriftyGreedy': np.zeros(size),
+            'ThriftyKeyGreedy': np.zeros(size)
         }
 
         generator = MatrixGenerator.MatrixGenerator(None)
@@ -85,6 +87,10 @@ class Worker(QThread):
             _, values = comp.Thrifty_GreedyMethodX(transition)
             add_cum_sum('ThriftyGreedy', values)
 
+            # Thrifty(k) -> Greedy
+            _, values = comp.TkG_MethodX(k, transition)
+            add_cum_sum('ThriftyKeyGreedy', values)
+
             self.progress.emit(int((i + 1) / experiments * 100))
 
         # Average out
@@ -119,6 +125,10 @@ class ComparisonPanel(QWidget):
         self.spin_transition = QSpinBox()
         self.spin_transition.setRange(1, 100)
         self.spin_transition.setValue(7)
+
+        self.spin_k = QSpinBox()
+        self.spin_k.setRange(1, 100)
+        self.spin_k.setValue(3)
         
         self.spin_mass = QSpinBox()
         self.spin_mass.setRange(1, 100000)
@@ -161,6 +171,7 @@ class ComparisonPanel(QWidget):
         self.params_layout.addRow("Кол-во партий:", self.spin_size)
         self.params_layout.addRow("Эксперименты:", self.spin_experiments)
         self.params_layout.addRow("Этап смены стратегии:", self.spin_transition)
+        self.params_layout.addRow("Параметр k:", self.spin_k)
         self.params_layout.addRow("Суточная масса:", self.spin_mass)
         
         # Modified layout: Label on top, controls below
@@ -222,7 +233,7 @@ class ComparisonPanel(QWidget):
         # 3. General Results View
         self.results_text = QTextEdit()
         self.results_text.setReadOnly(True)
-        self.results_text.setStyleSheet("font-size: 14px; color: #CDD6F4; background-color: #1E1E2E; border: 1px solid #45475A;")
+        self.results_text.setStyleSheet("font-size: 18px; color: #CDD6F4; background-color: #1E1E2E; border: 1px solid #45475A; padding: 10px;")
         self.stacked_widget.addWidget(self.results_text)
 
         self.right_layout.addWidget(self.stacked_widget)
@@ -250,6 +261,7 @@ class ComparisonPanel(QWidget):
             'size': self.spin_size.value(),
             'experiments': self.spin_experiments.value(),
             'transition': self.spin_transition.value(),
+            'k': self.spin_k.value(),
             'mass': self.spin_mass.value(),
             'sugar_min': self.spin_sugar_min.value(),
             'sugar_max': self.spin_sugar_max.value(),
@@ -299,6 +311,7 @@ class ComparisonPanel(QWidget):
         self.ax_graph.plot(x, results['Thrifty'], label='Бережливая', color='#89B4FA')
         self.ax_graph.plot(x, results['GreedyThrifty'], label='Жадн/Береж', color='#CBA6F7', linestyle='--')
         self.ax_graph.plot(x, results['ThriftyGreedy'], label='Береж/Жадн', color='#FAB387', linestyle='-.')
+        self.ax_graph.plot(x, results['ThriftyKeyGreedy'], label='Береж(k)/Жадн', color='#94E2D5', linestyle='-')
         
         self.ax_graph.set_title("Средние значения алгоритмов на каждом этапе")
         self.ax_graph.set_xlabel("Этап (столбец)")
@@ -315,17 +328,18 @@ class ComparisonPanel(QWidget):
         self.ax_hist.clear()
         self.style_plot(self.ax_hist)
         
-        labels = ['Венг. (Макс)', 'Венг. (Мин)', 'Жадная', 'Бережливая', 'Жадн/Береж', 'Береж/Жадн']
+        labels = ['Венг. (Макс)', 'Венг. (Мин)', 'Жадная', 'Бережливая', 'Жадн/Береж', 'Береж/Жадн', 'Береж(k)/Жадн']
         final_values = [
             results['HungarianMax'][-1],
             results['HungarianMin'][-1],
             results['Greedy'][-1],
             results['Thrifty'][-1],
             results['GreedyThrifty'][-1],
-            results['ThriftyGreedy'][-1]
+            results['ThriftyGreedy'][-1],
+            results['ThriftyKeyGreedy'][-1]
         ]
         
-        colors = ['#A6E3A1', '#F38BA8', '#F9E2AF', '#89B4FA', '#CBA6F7', '#FAB387']
+        colors = ['#A6E3A1', '#F38BA8', '#F9E2AF', '#89B4FA', '#CBA6F7', '#FAB387', '#94E2D5']
         
         bars = self.ax_hist.bar(labels, final_values, color=colors)
         
@@ -338,13 +352,16 @@ class ComparisonPanel(QWidget):
         self.canvas_hist.draw()
 
     def show_general_results(self, results):
+        mass = self.spin_mass.value()
+        
         final_values = {
-            'Венгерский (Максимум)': results['HungarianMax'][-1],
-            'Венгерский (Минимум)': results['HungarianMin'][-1],
-            'Жадная стратегия': results['Greedy'][-1],
-            'Бережливая стратегия': results['Thrifty'][-1],
-            'Жадная -> Бережливая': results['GreedyThrifty'][-1],
-            'Бережливая -> Жадная': results['ThriftyGreedy'][-1]
+            'Венгерский (Максимум)': results['HungarianMax'][-1] * mass,
+            'Венгерский (Минимум)': results['HungarianMin'][-1] * mass,
+            'Жадная стратегия': results['Greedy'][-1] * mass,
+            'Бережливая стратегия': results['Thrifty'][-1] * mass,
+            'Жадная -> Бережливая': results['GreedyThrifty'][-1] * mass,
+            'Бережливая -> Жадная': results['ThriftyGreedy'][-1] * mass,
+            'Бережливая(k) -> Жадная': results['ThriftyKeyGreedy'][-1] * mass
         }
         
         # Exclude Hungarian Max from best strategy calculation

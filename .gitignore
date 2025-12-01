@@ -11,7 +11,7 @@ venv/
 pip-log.txt
 pip-delete-this-directory.txt
 build
-dist/
+dist
 *.spec
 
 # VS Code
@@ -26,6 +26,8 @@ dist/
 # OS generated files
 .DS_Store
 Thumbs.db
+setup_script.iss
+INSTALLER_README.txt
 
 # Project specific
 # (If there are any temporary data files generated)
