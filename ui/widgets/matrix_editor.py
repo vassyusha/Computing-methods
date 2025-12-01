@@ -107,9 +107,10 @@ class MatrixEditorPanel(QWidget):
 
     def fill_random(self):
         n = self.size_spinbox.value()
-        # Используем существующий MatrixGenerator
-        generator = MatrixGenerator.MatrixGenerator(None)
-        matrix = generator.GenerateUniformMatrix(size=n)
+        # Используем MatrixGenerator с параметрами по умолчанию, но n=n и v=n (квадратная матрица для редактора)
+        
+        generator = MatrixGenerator.MatrixGenerator(n=n, v=n)
+        matrix = generator.GenerateCMatrix()
         
         for i in range(n):
             for j in range(n):

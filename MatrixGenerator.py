@@ -16,14 +16,12 @@ class MatrixGenerator:
     def __validate_parameters(self, n: int, v: int, a_min: float, a_max: float, beta1: float, beta2: float):
         if n <= 0:
             raise ValueError("n must be more than 0")
-        if v <= 20:
-            raise ValueError("v must be more than 20")
+        if v <= 0:
+            raise ValueError("v must be more than 0")
         if a_min >= a_max:
             raise ValueError("a_min must be less than a_max")
         if beta1 >= beta2:
             raise ValueError("beta1 must be less than beta2")
-        if not (0.85 <= beta1 < beta2 <= 1.0):
-                raise ValueError("beta1 and beta2 must be in range [0.85, 1.0]")
         
     @private
     def GenerateABMatrices(self, distribution_type: str) -> Tuple[np.array, np.array]:
@@ -60,4 +58,3 @@ class MatrixGenerator:
             c_matrix[:, j] = c_matrix[:, j-1] * b_matrix[:, j-1]
         
         return c_matrix
-    
