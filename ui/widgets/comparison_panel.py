@@ -2,13 +2,16 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSpinBox, QLabel, 
     QGroupBox, QFormLayout, QProgressBar, QDoubleSpinBox, QCheckBox, QTabWidget,
-    QComboBox, QStackedWidget, QTextEdit
+    QComboBox, QStackedWidget, QTextEdit, QFileDialog, QMessageBox, QRadioButton, QButtonGroup
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
+import random
+import csv
+import scipy.optimize
 import Computing
 import MatrixGenerator
 
@@ -22,6 +25,7 @@ class Worker(QThread):
 
     def run(self):
         size = self.params['size']
+        days = self.params['days']
         experiments = self.params['experiments']
         transition = self.params['transition']
         k = self.params['k']
@@ -32,70 +36,120 @@ class Worker(QThread):
         sugar_max = self.params['sugar_max']
         deg_min = self.params['deg_min']
         deg_max = self.params['deg_max']
+        distribution = self.params['distribution']
         
         # Initialize accumulators for cumulative sums
+        # Note: The size of arrays should now be 'days' (v), not 'size' (n)
+        # because we are plotting over time (stages)
         results = {
-            'HungarianMin': np.zeros(size),
-            'HungarianMax': np.zeros(size),
-            'Thrifty': np.zeros(size),
-            'Greedy': np.zeros(size),
-            'GreedyThrifty': np.zeros(size),
-            'ThriftyGreedy': np.zeros(size),
-            'ThriftyKeyGreedy': np.zeros(size)
+            'HungarianMin': np.zeros(days),
+            'HungarianMax': np.zeros(days),
+            'Thrifty': np.zeros(days),
+            'Greedy': np.zeros(days),
+            'GreedyThrifty': np.zeros(days),
+            'ThriftyGreedy': np.zeros(days),
+            'ThriftyKeyGreedy': np.zeros(days)
+        }
+        
+        # Accumulator for relative losses
+        losses = {
+            'Greedy': 0.0,
+            'Thrifty': 0.0,
+            'GreedyThrifty': 0.0,
+            'ThriftyGreedy': 0.0,
+            'ThriftyKeyGreedy': 0.0
         }
 
-        generator = MatrixGenerator.MatrixGenerator(None)
+        # Instantiate Generator with parameters
+        generator = MatrixGenerator.MatrixGenerator(
+            n=size, 
+            v=days, 
+            a_min=sugar_min, 
+            a_max=sugar_max, 
+            beta1=deg_min, 
+            beta2=deg_max
+        )
 
         for i in range(experiments):
-            # Use the new scenario generator
-            matrix = generator.GenerateScenarioMatrix(
-                size=size,
-                mass=mass,
-                sugar_min=sugar_min,
-                sugar_max=sugar_max,
-                deg_min=deg_min,
-                deg_max=deg_max
-            )
+            # Use GenerateCMatrix
+            matrix = generator.GenerateCMatrix(distribution_type=distribution)
             
             comp = Computing.Computing(matrix)
 
-            # Helper to add cumulative sum
+            # Helper to add cumulative sum safely
             def add_cum_sum(key, values):
-                results[key] += np.cumsum(values)
+                # Pad values with zeros if length is less than days
+                padded_values = np.zeros(days)
+                length = min(len(values), days)
+                padded_values[:length] = values[:length]
+                
+                # If we stopped early, the cumulative sum should persist the last value?
+                # No, values are costs per step. If we stop, cost is 0.
+                # So cumsum will just stay flat.
+                
+                results[key] += np.cumsum(padded_values)
+                return np.sum(values)
 
             # Hungarian Min
-            _, values = comp.HungarianMinimum()
-            add_cum_sum('HungarianMin', values)
+            # We need to sort values by column index to represent time correctly
+            row_ind, col_ind = scipy.optimize.linear_sum_assignment(matrix)
+            # Create an array of size 'days' (v)
+            hungarian_min_values = np.zeros(days)
+            # Fill in the costs at the correct days (columns)
+            hungarian_min_values[col_ind] = matrix[row_ind, col_ind]
+            
+            # We use this sorted array for plotting
+            add_cum_sum('HungarianMin', hungarian_min_values)
 
-            # Hungarian Max
-            _, values = comp.HungarianMaximum()
-            add_cum_sum('HungarianMax', values)
+            # Hungarian Max (Optimal for Maximization)
+            row_ind, col_ind = scipy.optimize.linear_sum_assignment(-matrix)
+            hungarian_max_values = np.zeros(days)
+            hungarian_max_values[col_ind] = matrix[row_ind, col_ind]
+            
+            opt_val = add_cum_sum('HungarianMax', hungarian_max_values)
 
             # Thrifty
             _, values = comp.ThriftyMethod()
-            add_cum_sum('Thrifty', values)
+            val = add_cum_sum('Thrifty', values)
+            if opt_val != 0:
+                losses['Thrifty'] += (opt_val - val) / opt_val
 
             # Greedy
             _, values = comp.GreedyMethod()
-            add_cum_sum('Greedy', values)
+            val = add_cum_sum('Greedy', values)
+            if opt_val != 0:
+                losses['Greedy'] += (opt_val - val) / opt_val
 
             # Greedy -> Thrifty
             _, values = comp.Greedy_ThriftyMethodX(transition)
-            add_cum_sum('GreedyThrifty', values)
+            val = add_cum_sum('GreedyThrifty', values)
+            if opt_val != 0:
+                losses['GreedyThrifty'] += (opt_val - val) / opt_val
 
             # Thrifty -> Greedy
             _, values = comp.Thrifty_GreedyMethodX(transition)
-            add_cum_sum('ThriftyGreedy', values)
+            val = add_cum_sum('ThriftyGreedy', values)
+            if opt_val != 0:
+                losses['ThriftyGreedy'] += (opt_val - val) / opt_val
 
             # Thrifty(k) -> Greedy
             _, values = comp.TkG_MethodX(k, transition)
-            add_cum_sum('ThriftyKeyGreedy', values)
+            val = add_cum_sum('ThriftyKeyGreedy', values)
+            if opt_val != 0:
+                losses['ThriftyKeyGreedy'] += (opt_val - val) / opt_val
 
             self.progress.emit(int((i + 1) / experiments * 100))
 
-        # Average out
+        # Average out results
         for key in results:
             results[key] /= experiments
+            
+        # Average out losses
+        for key in losses:
+            losses[key] /= experiments
+            
+        # Add losses to results dictionary
+        results['losses'] = losses
 
         self.finished.emit(results)
 
@@ -118,6 +172,10 @@ class ComparisonPanel(QWidget):
         self.spin_size.setRange(2, 100)
         self.spin_size.setValue(15)
         
+        self.spin_days = QSpinBox()
+        self.spin_days.setRange(2, 365) # MatrixGenerator now supports v > 0
+        self.spin_days.setValue(30)
+
         self.spin_experiments = QSpinBox()
         self.spin_experiments.setRange(1, 10000)
         self.spin_experiments.setValue(100)
@@ -168,11 +226,28 @@ class ComparisonPanel(QWidget):
         self.deg_layout.addWidget(QLabel("Max:"))
         self.deg_layout.addWidget(self.spin_deg_max)
         
-        self.params_layout.addRow("Кол-во партий:", self.spin_size)
+        # Distribution Type
+        self.dist_layout = QHBoxLayout()
+        self.radio_uniform = QRadioButton("Равномерное")
+        self.radio_concentrated = QRadioButton("Сконцентрированное")
+        self.radio_uniform.setChecked(True)
+        
+        self.dist_group = QButtonGroup(self)
+        self.dist_group.addButton(self.radio_uniform)
+        self.dist_group.addButton(self.radio_concentrated)
+        
+        self.dist_layout.addWidget(self.radio_uniform)
+        self.dist_layout.addWidget(self.radio_concentrated)
+
+        self.params_layout.addRow("Кол-во партий (n):", self.spin_size)
+        self.params_layout.addRow("Кол-во этапов (v):", self.spin_days)
         self.params_layout.addRow("Эксперименты:", self.spin_experiments)
         self.params_layout.addRow("Этап смены стратегии:", self.spin_transition)
         self.params_layout.addRow("Параметр k:", self.spin_k)
         self.params_layout.addRow("Суточная масса:", self.spin_mass)
+        
+        self.params_layout.addRow(QLabel("Распределение:"))
+        self.params_layout.addRow(self.dist_layout)
         
         # Modified layout: Label on top, controls below
         self.params_layout.addRow(QLabel("Сахаристость:"))
@@ -183,6 +258,21 @@ class ComparisonPanel(QWidget):
         
         self.settings_layout.addWidget(self.params_group)
         
+        # Buttons Layout
+        self.buttons_layout = QHBoxLayout()
+        
+        self.btn_export = QPushButton("Экспорт")
+        self.btn_export.clicked.connect(self.export_csv)
+        self.btn_export.setFixedHeight(45)
+        self.buttons_layout.addWidget(self.btn_export)
+
+        self.btn_random = QPushButton("Случайно")
+        self.btn_random.clicked.connect(self.randomize_parameters)
+        self.btn_random.setFixedHeight(45)
+        self.buttons_layout.addWidget(self.btn_random)
+        
+        self.settings_layout.addLayout(self.buttons_layout)
+
         self.btn_run = QPushButton("Запустить сравнение")
         self.btn_run.clicked.connect(self.run_comparison)
         self.btn_run.setFixedHeight(45) # Slightly taller
@@ -259,6 +349,7 @@ class ComparisonPanel(QWidget):
     def run_comparison(self):
         params = {
             'size': self.spin_size.value(),
+            'days': self.spin_days.value(),
             'experiments': self.spin_experiments.value(),
             'transition': self.spin_transition.value(),
             'k': self.spin_k.value(),
@@ -266,7 +357,8 @@ class ComparisonPanel(QWidget):
             'sugar_min': self.spin_sugar_min.value(),
             'sugar_max': self.spin_sugar_max.value(),
             'deg_min': self.spin_deg_min.value(),
-            'deg_max': self.spin_deg_max.value()
+            'deg_max': self.spin_deg_max.value(),
+            'distribution': 'uniform' if self.radio_uniform.isChecked() else 'concentrated'
         }
         
         self.btn_run.setVisible(False)
@@ -388,3 +480,59 @@ class ComparisonPanel(QWidget):
         """
         
         self.results_text.setHtml(text)
+
+    def randomize_parameters(self):
+        self.spin_size.setValue(random.randint(5, 30))
+        self.spin_days.setValue(random.randint(21, 50))
+        self.spin_experiments.setValue(random.randint(50, 500))
+        self.spin_transition.setValue(random.randint(1, self.spin_days.value()))
+        self.spin_k.setValue(random.randint(1, 5))
+        self.spin_mass.setValue(random.randint(1000, 5000))
+        
+        s_min = round(random.uniform(0.10, 0.18), 2)
+        s_max = round(random.uniform(s_min, 0.25), 2)
+        self.spin_sugar_min.setValue(s_min)
+        self.spin_sugar_max.setValue(s_max)
+        
+        d_min = round(random.uniform(0.90, 0.96), 2)
+        d_max = round(random.uniform(d_min, 0.99), 2)
+        self.spin_deg_min.setValue(d_min)
+        self.spin_deg_max.setValue(d_max)
+        
+        if random.choice([True, False]):
+            self.radio_uniform.setChecked(True)
+        else:
+            self.radio_concentrated.setChecked(True)
+
+    def export_csv(self):
+        if self.current_results is None or 'losses' not in self.current_results:
+            QMessageBox.warning(self, "Ошибка", "Сначала запустите сравнение алгоритмов.")
+            return
+
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getSaveFileName(self, "Сохранить CSV", "", "CSV Files (*.csv);;All Files (*)", options=options)
+        
+        if fileName:
+            try:
+                with open(fileName, 'w', newline='', encoding='utf-8-sig') as csvfile:
+                    writer = csv.writer(csvfile, delimiter=';')
+                    writer.writerow(['Стратегия', 'Средняя относительная потеря'])
+                    
+                    losses = self.current_results['losses']
+                    
+                    # Map keys to Russian names
+                    names = {
+                        'Greedy': 'Жадная',
+                        'Thrifty': 'Бережливая',
+                        'GreedyThrifty': 'Жадная -> Бережливая',
+                        'ThriftyGreedy': 'Бережливая -> Жадная',
+                        'ThriftyKeyGreedy': 'Бережливая(k) -> Жадная'
+                    }
+                    
+                    for key, value in losses.items():
+                        name = names.get(key, key)
+                        writer.writerow([name, f"{value:.6f}"])
+                        
+                QMessageBox.information(self, "Успех", "Файл успешно сохранен.")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
