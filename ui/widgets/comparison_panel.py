@@ -15,6 +15,80 @@ import scipy.optimize
 import Computing
 import MatrixGenerator
 
+class PlotNavigator:
+    def __init__(self, canvas, ax):
+        self.canvas = canvas
+        self.ax = ax
+        self.press = None
+        self.canvas.mpl_connect('button_press_event', self.on_press)
+        self.canvas.mpl_connect('button_release_event', self.on_release)
+        self.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.canvas.mpl_connect('scroll_event', self.on_scroll)
+
+    def on_press(self, event):
+        if event.inaxes != self.ax: return
+        if event.button == 1: # Left click
+            self.press = (event.xdata, event.ydata)
+
+    def on_release(self, event):
+        self.press = None
+        self.canvas.draw()
+
+    def on_motion(self, event):
+        if self.press is None: return
+        if event.inaxes != self.ax: return
+        
+        x0, y0 = self.press
+        x_curr, y_curr = event.xdata, event.ydata
+        
+        if x_curr is None or y_curr is None: return
+        
+        dx = x_curr - x0
+        dy = y_curr - y0
+        
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+        
+        self.ax.set_xlim(xlim[0] - dx, xlim[1] - dx)
+        self.ax.set_ylim(ylim[0] - dy, ylim[1] - dy)
+        
+        self.canvas.draw()
+
+    def on_scroll(self, event):
+        if event.inaxes != self.ax: return
+        
+        base_scale = 1.1
+        if event.button == 'up':
+            scale_factor = 1/base_scale
+        elif event.button == 'down':
+            scale_factor = base_scale
+        else:
+            return
+            
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+        
+        xdata = event.xdata
+        ydata = event.ydata
+        
+        if xdata is None or ydata is None: return
+        
+        # New width and height
+        w = xlim[1] - xlim[0]
+        h = ylim[1] - ylim[0]
+        new_w = w * scale_factor
+        new_h = h * scale_factor
+        
+        # Relative position of mouse
+        rel_x = (xdata - xlim[0]) / w
+        rel_y = (ydata - ylim[0]) / h
+        
+        # New limits
+        self.ax.set_xlim([xdata - new_w * rel_x, xdata + new_w * (1 - rel_x)])
+        self.ax.set_ylim([ydata - new_h * rel_y, ydata + new_h * (1 - rel_y)])
+        
+        self.canvas.draw()
+
 class Worker(QThread):
     progress = pyqtSignal(int)
     finished = pyqtSignal(dict)
@@ -168,13 +242,9 @@ class ComparisonPanel(QWidget):
         self.params_group = QGroupBox("Основные параметры")
         self.params_layout = QFormLayout(self.params_group)
         
-        self.spin_size = QSpinBox()
-        self.spin_size.setRange(2, 100)
-        self.spin_size.setValue(15)
-        
-        self.spin_days = QSpinBox()
-        self.spin_days.setRange(2, 365) # MatrixGenerator now supports v > 0
-        self.spin_days.setValue(30)
+        self.spin_size_days = QSpinBox()
+        self.spin_size_days.setRange(2, 100)
+        self.spin_size_days.setValue(15)
 
         self.spin_experiments = QSpinBox()
         self.spin_experiments.setRange(1, 10000)
@@ -239,8 +309,7 @@ class ComparisonPanel(QWidget):
         self.dist_layout.addWidget(self.radio_uniform)
         self.dist_layout.addWidget(self.radio_concentrated)
 
-        self.params_layout.addRow("Кол-во партий (n):", self.spin_size)
-        self.params_layout.addRow("Кол-во этапов (v):", self.spin_days)
+        self.params_layout.addRow("Кол-во партий и этапов:", self.spin_size_days)
         self.params_layout.addRow("Эксперименты:", self.spin_experiments)
         self.params_layout.addRow("Этап смены стратегии:", self.spin_transition)
         self.params_layout.addRow("Параметр k:", self.spin_k)
@@ -278,24 +347,22 @@ class ComparisonPanel(QWidget):
         self.btn_run.setFixedHeight(45) # Slightly taller
         self.settings_layout.addWidget(self.btn_run)
         
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        self.progress_bar.setFixedHeight(45) # Same height as button
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setAlignment(Qt.AlignCenter)
-        self.settings_layout.addWidget(self.progress_bar)
-        
         self.settings_layout.addStretch()
         
         # --- Right Side (Visualization) ---
         self.right_panel = QWidget()
         self.right_layout = QVBoxLayout(self.right_panel)
 
+        # Top controls layout
+        self.top_controls_layout = QHBoxLayout()
+
         # View Selector
         self.view_selector = QComboBox()
         self.view_selector.addItems(["График", "Гистограмма", "Общие результаты"])
         self.view_selector.currentIndexChanged.connect(self.update_view)
-        self.right_layout.addWidget(self.view_selector)
+        self.top_controls_layout.addWidget(self.view_selector)
+        
+        self.right_layout.addLayout(self.top_controls_layout)
 
         # Stacked Widget for views
         self.stacked_widget = QStackedWidget()
@@ -328,11 +395,20 @@ class ComparisonPanel(QWidget):
 
         self.right_layout.addWidget(self.stacked_widget)
         
+        # Reset View Button (Below the graph)
+        self.btn_reset_view = QPushButton("Сбросить вид")
+        self.btn_reset_view.clicked.connect(self.reset_view)
+        self.right_layout.addWidget(self.btn_reset_view)
+        
         self.layout.addWidget(self.settings_panel)
         self.layout.addWidget(self.right_panel)
 
         self.style_plot(self.ax_graph)
         self.style_plot(self.ax_hist)
+        
+        # Initialize Plot Navigators
+        self.nav_graph = PlotNavigator(self.canvas_graph, self.ax_graph)
+        self.nav_hist = PlotNavigator(self.canvas_hist, self.ax_hist)
         
         self.current_results = None
 
@@ -346,10 +422,34 @@ class ComparisonPanel(QWidget):
             spine.set_edgecolor('#45475A')
         ax.grid(True, color='#45475A', linestyle='--')
 
+    def reset_view(self):
+        index = self.stacked_widget.currentIndex()
+        if index == 0: # Graph
+            self.ax_graph.autoscale()
+            self.ax_graph.relim()
+            self.canvas_graph.draw()
+        elif index == 1: # Histogram
+            self.ax_hist.autoscale()
+            self.ax_hist.relim()
+            self.canvas_hist.draw()
+
     def run_comparison(self):
+        # Validate parameters to prevent crash
+        s_min = self.spin_sugar_min.value()
+        s_max = self.spin_sugar_max.value()
+        if s_min >= s_max:
+            QMessageBox.warning(self, "Ошибка", "Мин. сахаристость должна быть меньше Макс.")
+            return
+
+        d_min = self.spin_deg_min.value()
+        d_max = self.spin_deg_max.value()
+        if d_min >= d_max:
+            QMessageBox.warning(self, "Ошибка", "Мин. деградация должна быть меньше Макс.")
+            return
+
         params = {
-            'size': self.spin_size.value(),
-            'days': self.spin_days.value(),
+            'size': self.spin_size_days.value(),
+            'days': self.spin_size_days.value(),
             'experiments': self.spin_experiments.value(),
             'transition': self.spin_transition.value(),
             'k': self.spin_k.value(),
@@ -361,18 +461,16 @@ class ComparisonPanel(QWidget):
             'distribution': 'uniform' if self.radio_uniform.isChecked() else 'concentrated'
         }
         
-        self.btn_run.setVisible(False)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
+        self.btn_run.setEnabled(False)
+        self.btn_run.setText("Выполняется...")
         
         self.worker = Worker(params)
-        self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.finished.connect(self.on_finished)
         self.worker.start()
 
     def on_finished(self, results):
-        self.btn_run.setVisible(True)
-        self.progress_bar.setVisible(False)
+        self.btn_run.setEnabled(True)
+        self.btn_run.setText("Запустить сравнение")
         self.current_results = results
         self.update_view()
 
@@ -382,6 +480,12 @@ class ComparisonPanel(QWidget):
             
         index = self.view_selector.currentIndex()
         self.stacked_widget.setCurrentIndex(index)
+        
+        # Show/Hide reset button
+        if index == 2: # General Results
+             self.btn_reset_view.setVisible(False)
+        else:
+             self.btn_reset_view.setVisible(True)
         
         if index == 0:
             self.plot_graph(self.current_results)
@@ -409,7 +513,7 @@ class ComparisonPanel(QWidget):
         self.ax_graph.set_xlabel("Этап (столбец)")
         self.ax_graph.set_ylabel("Накопленная стоимость")
         
-        legend = self.ax_graph.legend()
+        legend = self.ax_graph.legend(loc='upper left')
         plt.setp(legend.get_texts(), color='#CDD6F4')
         legend.get_frame().set_facecolor('#313244')
         legend.get_frame().set_edgecolor('#45475A')
@@ -456,13 +560,18 @@ class ComparisonPanel(QWidget):
             'Бережливая(k) -> Жадная': results['ThriftyKeyGreedy'][-1] * mass
         }
         
-        # Exclude Hungarian Max from best strategy calculation
+        # Exclude Hungarian Max and Min from best/worst strategy calculation
         heuristic_values = final_values.copy()
         if 'Венгерский (Максимум)' in heuristic_values:
             del heuristic_values['Венгерский (Максимум)']
+        if 'Венгерский (Минимум)' in heuristic_values:
+            del heuristic_values['Венгерский (Минимум)']
             
         best_strategy = max(heuristic_values, key=heuristic_values.get)
         best_value = heuristic_values[best_strategy]
+
+        worst_strategy = min(heuristic_values, key=heuristic_values.get)
+        worst_value = heuristic_values[worst_strategy]
         
         text = f"""
         <h2 style="color: #cba6f7">Общие результаты экспериментов</h2>
@@ -476,26 +585,27 @@ class ComparisonPanel(QWidget):
         text += f"""
         </ul>
         <p>Наилучший результат виртуального эксперимента — <b style="color: #a6e3a1">{best_strategy}</b> ({best_value:.2f}).</p>
+        <p>Наихудший результат виртуального эксперимента — <b style="color: #f38ba8">{worst_strategy}</b> ({worst_value:.2f}).</p>
         <p>Согласно генеральному эксперименту в следующем сезоне предлагается применить <b style="color: #a6e3a1">{best_strategy}</b>.</p>
         """
         
         self.results_text.setHtml(text)
 
     def randomize_parameters(self):
-        self.spin_size.setValue(random.randint(5, 30))
-        self.spin_days.setValue(random.randint(21, 50))
+        val = random.randint(10, 30)
+        self.spin_size_days.setValue(val)
         self.spin_experiments.setValue(random.randint(50, 500))
-        self.spin_transition.setValue(random.randint(1, self.spin_days.value()))
+        self.spin_transition.setValue(random.randint(1, val))
         self.spin_k.setValue(random.randint(1, 5))
         self.spin_mass.setValue(random.randint(1000, 5000))
         
         s_min = round(random.uniform(0.10, 0.18), 2)
-        s_max = round(random.uniform(s_min, 0.25), 2)
+        s_max = round(random.uniform(s_min + 0.01, 0.25), 2)
         self.spin_sugar_min.setValue(s_min)
         self.spin_sugar_max.setValue(s_max)
         
         d_min = round(random.uniform(0.90, 0.96), 2)
-        d_max = round(random.uniform(d_min, 0.99), 2)
+        d_max = round(random.uniform(d_min + 0.01, 0.99), 2)
         self.spin_deg_min.setValue(d_min)
         self.spin_deg_max.setValue(d_max)
         
